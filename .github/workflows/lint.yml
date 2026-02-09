@@ -1,0 +1,54 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  clang-format:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install clang-format
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-format-18
+        sudo ln -sf /usr/bin/clang-format-18 /usr/bin/clang-format
+
+    - name: Check formatting
+      run: |
+        find src/main/cpp -name "*.cpp" -o -name "*.h" -o -name "*.hpp" | \
+        xargs clang-format --dry-run --Werror || exit 1
+
+  clang-tidy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-tidy-18 ninja-build
+        sudo ln -sf /usr/bin/clang-tidy-18 /usr/bin/clang-tidy
+
+    - name: Setup Android NDK
+      uses: android-actions/setup-android@v3
+      run: |
+        sdkmanager "ndk;27.2.12479018"
+
+    - name: Run clang-tidy
+      working-directory: src/main/cpp
+      run: |
+        cmake -B build \
+          -DCMAKE_SYSTEM_NAME=Android \
+          -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a \
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+          -DCMAKE_TOOLCHAIN_FILE=$ANDROID_SDK_ROOT/ndk/27.2.12479018/build/cmake/android.toolchain.cmake
+        clang-tidy -p build $(find . -name "*.cpp" -o -name "*.cc")
